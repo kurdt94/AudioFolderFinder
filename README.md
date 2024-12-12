@@ -6,6 +6,8 @@ A command-line tool to quickly identify and list directories containing audio fi
 
 `AudioFolderFinder` is a Java-based utility designed to recursively scan a directory tree and locate folders containing audio files. It provides a summary of these folders, including the number of audio files found and the total size of the audio files within them. The output is saved to a text file for easy reference.
 
+![alt text](https://i.imgur.com/32fPrtN.png)
+
 ## Features
 
 - **Recursive Directory Scanning:** Traverses all subdirectories within the specified input directory.

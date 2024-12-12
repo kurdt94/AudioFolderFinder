@@ -23,6 +23,7 @@ import org.slf4j.LoggerFactory;
 
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
+import com.beust.jcommander.ParameterException;
 
 // example run command
 // -i d:\Downloads\ -o test -v
@@ -63,6 +64,10 @@ public class App {
 
         @Parameter(names = {"-v", "--verbose"}, description = "Enable verbose mode")
         public boolean verbose = false;
+        
+        @Parameter(names = {"-h", "--help"}, help = true, description = "Display help information")
+        public boolean help;
+        
     }
 	
 	
@@ -78,15 +83,29 @@ public class App {
         String outPutFileName = "output";
 
         Args arguments = new Args();
-        JCommander.newBuilder()
+        JCommander jc = JCommander.newBuilder()
                 .addObject(arguments)
-                .build()
-                .parse(args);
+                .build();
+        
+        // parse args
+        try {
+            jc.parse(args);
+            // Exit if help is requested
+            if (arguments.help) {
+                jc.usage();
+                return; 
+            }
+        }catch(ParameterException  e){
+            LOGGER.error(AnsiColor.RED+"Error parsing arguments: "+AnsiColor.RESET + e.getMessage());
+            jc.usage();
+            System.exit(1);
+        }
         
         // Require inputFile
         if(arguments.inputFile == null) {
             LOGGER.warn(AnsiColor.RED+"Please provide a target directory."+AnsiColor.RESET);
-            return;
+            jc.usage();
+            System.exit(1);
         }else {
             rootDirectory = arguments.inputFile;	
             LOGGER.info(AnsiColor.YELLOW+"Using Input Folder: " + arguments.inputFile+AnsiColor.RESET);

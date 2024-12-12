@@ -25,6 +25,7 @@ To use `AudioFolderFinder`, you will need to execute it from the command line us
 ```bash
 java -jar AudioFolderFinder.jar -i <input_directory> [-o <output_filename>] [-v]
 
+-h, --help Display help information
 -i, --input <input_directory>: (Required) The path to the root directory you want to scan for audio files.
 -o, --output <output_filename>: (Optional) The base name for the output file (default is output). The tool will append a unique identifier and the .txt extension to this name.
 -v, --verbose: (Optional) Enables verbose output for more detailed logging.

@@ -24,6 +24,9 @@ import org.slf4j.LoggerFactory;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 
+// example run command
+// -i d:\Downloads\ -o test -v
+
 public class App {
 
 	public enum AnsiColor {
@@ -122,7 +125,8 @@ public class App {
             return;
         }
         
-        // walk the rootPath and add all directorys
+        // walk the rootPath and add found Directories to the ArrayList
+        // it does not follow symbolic links, and visits all levels of the file tree.
         List<Path> directories = new ArrayList<>();
         
         try {
@@ -157,19 +161,23 @@ public class App {
         }
 
         LOGGER.info(AnsiColor.GREEN+"Found " + directories.size() + " directories"+AnsiColor.RESET);
-          
+        
+        // 
         try {
+        	LOGGER.info(AnsiColor.YELLOW+"Looking for Audio Folders in " + directories.size() + " directories."+AnsiColor.RESET);
 			var result = processDirectories(directories);
 			try {
+				LOGGER.info(AnsiColor.YELLOW+"Writing results to file .."+AnsiColor.RESET);
 				writeResultsToFile(result.audioInfo(), outputFile, result.totalAudioFiles());
 			} catch (IOException e) {
-				e.printStackTrace();
+				//e.printStackTrace();
+				LOGGER.warn(AnsiColor.RED+"Failed to write " + outputFile + " to disk."+AnsiColor.RESET, e.getCause());
 			}
 		} catch (InterruptedException e) {
-			e.printStackTrace();
+			//e.printStackTrace();
 		}
         
-        LOGGER.info(AnsiColor.GREEN+"Success, a list of Audio Folders has been written to :" + outputFile.toString()+AnsiColor.GREEN);
+        LOGGER.info(AnsiColor.GREEN+"Success, a list of Audio Folders has been written to: "+AnsiColor.RESET + outputFile.toString());
         
     }
     
@@ -182,6 +190,7 @@ public class App {
         }
     }
 
+    // Processes a List of (Path) Directories and returns a ProcessingResults Object
     private static ProcessingResults processDirectories(List<Path> directories) throws InterruptedException {
     	List<FolderInfo> folderInfoList = new java.util.concurrent.CopyOnWriteArrayList<>();
         AtomicInteger totalAudioFiles = new AtomicInteger(0);
@@ -205,12 +214,13 @@ public class App {
             Thread.sleep(100);
         }
 
-        // Sort the results alphabetically by path
+        // Sort the results by path
         folderInfoList.sort(Comparator.comparing(FolderInfo::path));
 
         return new ProcessingResults(folderInfoList, totalAudioFiles.get());
     }
 
+    // Returns a FolderInfo Object containing path, audioFilesCount and size
     private static FolderInfo getFolderInfo(Path directory) {
         int audioFileCount = 0;
         long folderSize = 0;
@@ -230,7 +240,8 @@ public class App {
         return new FolderInfo(directory.toString(), audioFileCount, folderSize);
 
     }
-
+    
+    // Calculate total size of the given (Path) Directory , returns Long
     private static long calculateFolderSize(Path directory) throws IOException {
         try {
             return Files.walk(directory)
@@ -240,13 +251,13 @@ public class App {
                             return Files.size(file);
                         } catch (IOException e) {
                             LOGGER.error(AnsiColor.RED+"Error calculating file size " + AnsiColor.RESET + file.toString() + " ", e);
-                            return 0L; // Return 0 in case of an error getting a file's size.
+                            return 0L; // Return 0 if we can't get the file's size.
                         }
                     })
                     .sum();
         } catch (IOException e) {
             LOGGER.error(AnsiColor.RED+"error getting folder size " + AnsiColor.RESET + directory.toString() + " ", e);
-            return 0L; // Return 0 in case there is a problem calculating folder size.
+            return 0L; // Return 0 if we can't get the folder's size.
         }
     }
 
@@ -306,8 +317,6 @@ public class App {
     
     private static void printStartup() {
     
-
-    	
 	System.out.print(
 			AnsiColor.GREEN+"""
 			................................

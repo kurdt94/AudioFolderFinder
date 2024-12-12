@@ -3,9 +3,12 @@ package com.krdy.aff;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Comparator;
@@ -15,91 +18,170 @@ import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.beust.jcommander.JCommander;
+import com.beust.jcommander.Parameter;
+
 public class App {
 
+	public enum AnsiColor {
+	    RESET("\u001B[0m"),
+	    RED("\u001B[31m"),
+	    GREEN("\u001B[32m"),
+	    YELLOW("\u001B[33m"),
+	    BLUE("\u001B[34m"),
+	    BOLD("\u001B[1m"),
+	    UNDERLINE("\u001B[4m");
+
+	    private final String code;
+
+	    AnsiColor(String code) {
+	        this.code = code;
+	    }
+
+	    public String getCode() {
+	        return code;
+	    }
+
+	    @Override
+	    public String toString() {
+	       return this.code;
+	    }
+	}
+	
+	public static class Args {
+        @Parameter(names = {"-i", "--input"}, description = "Input file path")
+        public String inputFile;
+
+        @Parameter(names = {"-o", "--output"}, description = "Output filename")
+        public String outputFile;
+
+        @Parameter(names = {"-v", "--verbose"}, description = "Enable verbose mode")
+        public boolean verbose = false;
+    }
+	
+	
 	private static final List<String> audioFileExtensions = List.of(".flac", ".wav", ".mp3");
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(App.class);
    
     public static void main(String[] args) throws IOException, InterruptedException {
-    	
-    	System.out.println("capture this");
-    	
+    	    	
     	printStartup();
-    	
-        String rootDirectory;
-        String outPutFileName;
-        
-        // Argumens
-        if (args.length == 0) {
-            LOGGER.info("No command-line arguments provided.");
-            
-            rootDirectory = "f:\\_ AUDIO - BOOTLEG\\";
-            outPutFileName = "output";
-            
-        } else {
-        	
-            LOGGER.info("Command-line arguments provided:");
-            for (int i = 0; i < args.length; i++) {
-                System.out.println("Argument " + i + ": " + args[i]);
-            }
-            
-    		rootDirectory = args[0];
-            outPutFileName = "output";
-            
-        }
+    	boolean verboseMode = false;
+        String rootDirectory = null;
+        String outPutFileName = "output";
 
-        processFolder(rootDirectory, outPutFileName);
+        Args arguments = new Args();
+        JCommander.newBuilder()
+                .addObject(arguments)
+                .build()
+                .parse(args);
+        
+        // Require inputFile
+        if(arguments.inputFile == null) {
+            LOGGER.warn(AnsiColor.RED+"Please provide a target directory."+AnsiColor.RESET);
+            return;
+        }else {
+            rootDirectory = arguments.inputFile;	
+            LOGGER.info(AnsiColor.YELLOW+"Using Input Folder: " + arguments.inputFile+AnsiColor.RESET);
+        }
+        
+        // Optional outputFile
+		if(arguments.outputFile != null){ 
+			outPutFileName = arguments.outputFile;
+			LOGGER.info(AnsiColor.YELLOW+"Using custom Output File Name: " + arguments.outputFile+AnsiColor.RESET);
+		}else {
+			LOGGER.info(AnsiColor.YELLOW+"Using default Output File Name: " + outPutFileName+AnsiColor.RESET);
+		}
+		
+		// Optional verbose mode
+        if(arguments.verbose){
+        	 verboseMode = true;
+        	 LOGGER.info(AnsiColor.YELLOW+"Verbose mode enabled"+AnsiColor.RESET);
+        }
+        
+        processFolder(rootDirectory, outPutFileName,verboseMode);
         
     }
     
-    public static void processFolder(String root, String output) {
+    public static void processFolder(String root, String output, boolean verboseMode) {
     	// Set our Starting (root) Directory and output file
     	String id = getShortString();
     	String outputFileName = output + id + ".txt";
     	    	
     	Path rootPath = Paths.get(root); 
         Path outputFile = Paths.get(outputFileName);  
-        
-    	LOGGER.info("Processing folder :  " + rootPath.toString());
-    	LOGGER.info("Output file :  " + outputFile.toString());
+
+    	LOGGER.info(AnsiColor.GREEN+"Output file :  " + outputFile.toString()+AnsiColor.RESET);
         
         if (!Files.isDirectory(rootPath)) {
-        	LOGGER.info("The provided path is not a directory, please provide a valid path");
+        	LOGGER.warn(AnsiColor.RED+"The provided path is not a directory, please provide a valid path"+AnsiColor.RESET);
             return;
         }
         
         // walk the rootPath and add all directorys
         List<Path> directories = new ArrayList<>();
-        try {
-            Files.walk(rootPath).filter(Files::isDirectory).forEach(directories::add);
-        } catch (Exception e) {
-            LOGGER.error("There was an error finding the folders :", e.getMessage());
-        }
         
-        LOGGER.info("found " + directories.size() + " directories");
+        try {
+            Files.walkFileTree(rootPath, new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                    if(safeIsDirectory(dir)) {
+                         directories.add(dir);
+                         return FileVisitResult.CONTINUE;
+                    } else {
+                       return FileVisitResult.SKIP_SUBTREE;
+                    }
+                }
+
+                @Override
+                public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
+                	if(verboseMode) {
+                	 LOGGER.warn("Error accessing path: " + file + " , skipping: " + exc.getMessage());
+                	}
+                     return FileVisitResult.CONTINUE; // Ignore and continue the walk
+                }
+                
+                @Override
+                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                     return FileVisitResult.CONTINUE;
+                 }
+           });
+
+
+        } catch (Exception e) {
+            LOGGER.error(AnsiColor.RED+"Error walking directory"+AnsiColor.RESET, e);
+        }
+
+        LOGGER.info(AnsiColor.GREEN+"Found " + directories.size() + " directories"+AnsiColor.RESET);
           
         try {
 			var result = processDirectories(directories);
 			try {
 				writeResultsToFile(result.audioInfo(), outputFile, result.totalAudioFiles());
 			} catch (IOException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
         
-        LOGGER.info("Audio containing directory paths have been written to: " + outputFile.toString());
+        LOGGER.info(AnsiColor.GREEN+"Success, a list of Audio Folders has been written to :" + outputFile.toString()+AnsiColor.GREEN);
         
     }
     
+    private static boolean safeIsDirectory(Path path) {
+        try {
+            return Files.isDirectory(path);
+        } catch(Exception e) {
+           LOGGER.warn(AnsiColor.RED+"Failed to check if path: " + path + " is a directory"+AnsiColor.RESET, e);
+           return false;
+        }
+    }
+
     private static ProcessingResults processDirectories(List<Path> directories) throws InterruptedException {
     	List<FolderInfo> folderInfoList = new java.util.concurrent.CopyOnWriteArrayList<>();
         AtomicInteger totalAudioFiles = new AtomicInteger(0);
@@ -143,7 +225,7 @@ public class App {
             folderSize = calculateFolderSize(directory);
 
         } catch (IOException e) {
-            LOGGER.error("Could not access direcory : " + directory + " " + e.getMessage());
+            LOGGER.error(AnsiColor.RED+"Could not access direcory : " + directory + " "+ AnsiColor.RESET + e.getMessage());
         }
         return new FolderInfo(directory.toString(), audioFileCount, folderSize);
 
@@ -157,13 +239,13 @@ public class App {
                         try {
                             return Files.size(file);
                         } catch (IOException e) {
-                            LOGGER.error("Error calculating file size " + file.toString() + " ", e);
+                            LOGGER.error(AnsiColor.RED+"Error calculating file size " + AnsiColor.RESET + file.toString() + " ", e);
                             return 0L; // Return 0 in case of an error getting a file's size.
                         }
                     })
                     .sum();
         } catch (IOException e) {
-            LOGGER.error("error getting folder size " + directory.toString() + " ", e);
+            LOGGER.error(AnsiColor.RED+"error getting folder size " + AnsiColor.RESET + directory.toString() + " ", e);
             return 0L; // Return 0 in case there is a problem calculating folder size.
         }
     }
@@ -195,7 +277,7 @@ public class App {
                     .encodeToString(UUID.randomUUID().toString().getBytes(StandardCharsets.UTF_8))
                     .substring(0, 5);
 		} catch (Exception e) {
-			System.err.println("Error encoding UUID: " + e.getMessage());
+			LOGGER.warn(AnsiColor.RED+"Error encoding UUID: " + AnsiColor.RESET + e.getMessage());
 			return generateRandomString();
 		} 
     	
@@ -223,9 +305,11 @@ public class App {
     private record FolderInfo(String path, int audioFilesCount, long size) { }
     
     private static void printStartup() {
+    
+
     	
 	System.out.print(
-			"""
+			AnsiColor.GREEN+"""
 			................................
 			.##..##..#####...#####...##..##.
 			.##.##...##..##..##..##...####..
@@ -233,13 +317,13 @@ public class App {
 			.##.##...##..##..##..##....##...
 			.##..##..##..##..#####.....##...
 			................................
-			:: AudioFolderFinder 1.0.0.0  ::
+			:: AudioFolderFinder 1.1.0.0  ::
 			................................
 			:: - Copyright 2024           :: 
 			:: - Erwin Graanstra          ::
 			:: - krdy.online@gmail.com    ::
 			................................
-			"""
+			"""+AnsiColor.RESET
 			);
     	
     }

@@ -4,11 +4,19 @@
   <artifactId>AudioFolderFinder</artifactId>
   <version>0.0.1-SNAPSHOT</version>
   <dependencies>
+	  
 	  <dependency>
 	    <groupId>ch.qos.logback</groupId>
 	    <artifactId>logback-classic</artifactId>
 	    <version>1.4.14</version>  <!-- Updated to the latest -->
 	  </dependency>
+	  
+	  <dependency>
+		  <groupId>com.beust</groupId>
+		  <artifactId>jcommander</artifactId>
+		  <version>1.82</version> <!-- Use the latest version -->
+	 </dependency>
+	  
   </dependencies>
   <build>
     <sourceDirectory>src</sourceDirectory>

@@ -188,7 +188,6 @@ public class App {
     }
 
     // returns a shortened UUID
-    // @ TODO ... faster one ? ? 
     public static String getShortString() {
     	
     	try {
